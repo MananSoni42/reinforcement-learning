@@ -7,12 +7,12 @@ from matplotlib import animation
 import time
 import random
 
-GRID_COLS = 5
-GRID_ROWS = 5
+GRID_COLS = 6
+GRID_ROWS = 6
 val_init = 0
-itr = 500
+itr = 100
 gamma = 0.9
-starting_pt = 17  # 0-24
+starting_pt = 35
 
 def next_step(val,s,a):
     possible_states = []
@@ -20,7 +20,7 @@ def next_step(val,s,a):
         possible_states.append((grid[s][act][1],val[grid[s][act][1]]))
     possible_states = np.array(possible_states)
     try:
-        ind = random.choice(np.argwhere(possible_states[:,1] == np.argmax(possible_states[:,1])))[0]
+        ind = random.choice(np.argwhere(possible_states[:,1] == np.max(possible_states[:,1])))[0]
     except:
         ind = np.argmax(possible_states[:,1])
     nxt_st = int(possible_states[ind,0])
@@ -73,8 +73,8 @@ for i in range(itr):
             sum += 0.25*(state[act][0]+gamma*val[state[act][1]])
         val[s] = sum
 
-for i in range(0,GRID_ROWS*GRID_COLS,5):
-    print(val[i:i+5])
+for i in range(0,GRID_ROWS*GRID_COLS,GRID_COLS):
+    print(val[i:i+GRID_COLS])
 
 # visualize solution
 current_state = starting_pt

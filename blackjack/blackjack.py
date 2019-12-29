@@ -1,6 +1,9 @@
 import numpy as np
 import random
 from pprint import pprint
+from tqdm import tqdm
+import matplotlib.pyplot as plt
+from mpl_toolkits import mplot3d
 
 # 0 -> STICK
 # 1 -> HIT
@@ -30,6 +33,7 @@ card_value = lambda card: 11 if card==1 else min(card,10)
 
 
 def generate_episode(target_policy, initial_state=None, initial_action=None):
+    finish = False
     dealer_card1 = -1
     dealer_card2 = -1
     dealer_sum = 0
@@ -44,19 +48,14 @@ def generate_episode(target_policy, initial_state=None, initial_action=None):
         dealer_card2 = get_card()
 
         # initialize cards of player
-        card = get_card()
-        player_sum += card_value(card)
+        while player_sum < 12:
+            card = get_card()
+            player_sum += card_value(card)
 
-        if card == 1:
-            player_usable_ace = True
-
-        card = get_card()
-        player_sum += card_value(card)
-
-        if player_sum > 21:
-            player_sum -= 10 # replace Ace (11) by Ace(1)
-        elif card == 1:
-            player_usable_ace = True
+            if player_sum > 21:
+                player_sum -= 10 # replace Ace (11) by Ace(1)
+            elif card == 1:
+                player_usable_ace = True
 
     else:
         player_sum, player_usable_ace, dealer_card1 = initial_state
@@ -66,7 +65,7 @@ def generate_episode(target_policy, initial_state=None, initial_action=None):
     assert player_sum <= 21
 
     # game state
-    state = [player_sum,player_usable_ace,dealer_card1]
+    state = (player_sum,player_usable_ace,dealer_card1)
 
     # initialize dealer's state
     dealer_sum = card_value(dealer_card1) + card_value(dealer_card2)
@@ -102,26 +101,29 @@ def generate_episode(target_policy, initial_state=None, initial_action=None):
         if player_sum == 21: # player wins or draws
             if dealer_sum == 21:
                 reward = 0
+                finish = True
                 break
             else:
                 reward = 1
+                finish = True
                 break
 
-        if player_sum > 21: # player loses or converts ace(11) to ace(1)
+        elif player_sum > 21: # player loses or converts ace(11) to ace(1)
             if ace_count != 0:
                 player_sum -= 10
                 if ace_count == 1:
                     player_usable_ace = False
             else:
                 reward = -1
+                finish = True
                 break
-    state = [player_sum, player_usable_ace, dealer_card1]
-    history.append(state)
+        state = (player_sum, player_usable_ace, dealer_card1)
+        history.append(state)
 
     # dealer's chance
     dealer_action = dealer_policy(dealer_sum)
     dealer_ace_count = int(dealer_usable_ace)
-    while dealer_action == 1:
+    while dealer_action == 1 and not finish:
         if dealer_action == 0:
             break
         card = get_card()
@@ -154,4 +156,49 @@ def generate_episode(target_policy, initial_state=None, initial_action=None):
             reward = -1 + 2*int(player_sum > dealer_sum)
     return history, reward
 
-pprint(generate_episode(player_policy))
+# Generate one episode as trial
+# pprint(generate_episode(player_policy))
+
+def monte_carlo_on_policy_eval(episodes):
+    print('start')
+    states_usable_ace = np.zeros((10, 10))
+    states_usable_ace_count = np.ones((10, 10))
+    states_no_usable_ace = np.zeros((10, 10))
+    states_no_usable_ace_count = np.ones((10, 10))
+
+    for _ in tqdm(range(episodes)):
+        hist, reward = generate_episode(player_policy)
+        for (player_sum,usable_ace,dealer_card) in hist:
+                dealer_card = card_value(dealer_card) # get value of dealer's card
+                dealer_card -= 1 # dealer's card value is in the range 1-11
+                if dealer_card == 10: # rename ace to 1
+                    dealer_card = 0
+                player_sum = min(player_sum,21) - 12 # player's sum is in the range 12-*
+                if usable_ace:
+                    states_usable_ace[player_sum,dealer_card] += reward
+                    states_usable_ace_count[player_sum,dealer_card] += 1
+                else:
+                    states_no_usable_ace[player_sum,dealer_card] += reward
+                    states_no_usable_ace_count[player_sum,dealer_card] += 1
+    plt.figure(1)
+    ax = plt.axes(projection='3d')
+    x,y = np.meshgrid(np.arange(12,21+1), np.arange(1,10+1))
+    #ax.plot_wireframe(x, y, states_usable_ace/states_usable_ace_count)
+    ax.plot_surface(x, y, states_usable_ace/states_usable_ace_count)
+    ax.set_xlabel('Player sum')
+    ax.set_ylabel('Dealer\'s card')
+    ax.set_zlabel('Value');
+    ax.set_title('Usable Ace')
+
+    plt.figure(2)
+    ax = plt.axes(projection='3d')
+    x,y = np.meshgrid(np.arange(12,21+1), np.arange(1,10+1))
+    #ax.plot_wireframe(x, y, states_usable_ace/states_usable_ace_count)
+    ax.plot_surface(x, y, states_no_usable_ace/states_no_usable_ace_count)
+    ax.set_xlabel('Player sum')
+    ax.set_ylabel('Dealer\'s card')
+    ax.set_zlabel('Value');
+    ax.set_title('No usable Ace')
+    plt.show()
+
+monte_carlo_on_policy_eval(100000)

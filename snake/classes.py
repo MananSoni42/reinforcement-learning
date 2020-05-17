@@ -98,14 +98,14 @@ class Env:
         y += action[a][1]
         if not (0 <= x < self.N and 0 <= y < self.N):
             self.end = True
-            r = reward['bump']
+            r += reward['bump']
         elif self.grid[x,y] == object['snake-body']:
             self.end = True
-            r = reward['bump']
+            r += reward['bump']
             self.snake.pos.append((x,y))
             self.grid[x,y] = object['snake-head']
         elif self.grid[x,y] == object['food']:
-            r = reward['food']
+            r += reward['food']
             self.food = False
             self.score += 1
             self.snake.pos.append((x,y))
@@ -115,7 +115,6 @@ class Env:
             self.snake.pos.pop(0)
             self.snake.pos.append((x,y))
             self.grid[x,y] = object['snake-head']
-
 
         if not self.food:
             self.create_food()

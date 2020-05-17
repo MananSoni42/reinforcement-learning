@@ -1,7 +1,7 @@
 from classes import Env, HumanSnake, AISnake, Game
 
 N = 3
-num = 500000
+num = 100000
 alpha = 1
 
 s = HumanSnake()

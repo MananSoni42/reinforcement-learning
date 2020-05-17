@@ -1,5 +1,6 @@
 import numpy as np
 from tqdm import tqdm
+import json
 
 object = {
     'empty': 0,
@@ -15,11 +16,26 @@ action = {
     'down': (1,0),
 }
 
+action_enc = {
+    'left': 0,
+    'right': 1,
+    'up': 2,
+    'down': 3,
+}
+
 reward = {
     'food': 5,
     'bump': -1,
     'time': -0.1
 }
+
+
+def str_to_list(s,spl=', '):
+    print(s)
+    s = s.replace('(','').replace(')','').replace('[','').replace(']','').split(spl)
+    l = tuple([int(v) for v in s])
+    print(l)
+    return l
 
 class Env:
     """grid for """
@@ -63,33 +79,22 @@ class Env:
         self.food = True
 
     def get_state(self):
-        num = 0
-        if self.end:
-            x1,y1 = self.snake.pos[-1]
-            x2,y2 = 0,0
-            return (x1,y1,x2,y2,num)
-
+        if len(self.snake.last) < 2:
+            while (len(self.snake.last) != 3):
+                self.snake.last.insert(0,-1)
+        lasts = self.snake.last[-3:]
         x1,y1 = self.snake.pos[-1]
-        x2,y2 = np.where(self.grid==object['food'])
-        x2 = x2[0]
-        y2 = y2[0]
+        if self.end:
+            x2,y2 = 0,0
+        else:
+            x2,y2 = np.where(self.grid==object['food'])
+            x2 = x2[0]
+            y2 = y2[0]
 
-        for i in range(-1,1+1):
-            for j in range(-1,1+1):
-                if (i,j) != (0,0):
-                    try:
-                        val = self.grid[self.snake.pos[0][0]+i, self.snake.pos[0][1]+j]
-                        val = int(val==1 or val==2)
-                    except IndexError:
-                        val = 0
-                    ind = (i+1)*3 + (j+1)
-                    if ind>4:
-                        ind -= 1
-                    num += pow(2,7-ind)*val
-
-        return (x1,y1,x2,y2,num)
+        return str((x1,y1,x2,y2,lasts[-1],lasts[-2]))
 
     def next(self,a,print_score=False):
+        self.snake.last.append(action_enc[a])
         r = reward['time']
         self.grid[self.snake.pos[-1]] = object['snake-body']
 
@@ -151,21 +156,30 @@ class HumanSnake:
 class AISnake:
     """class for snake object can move"""
 
-    def __init__(self, N, pos=(0,0), alpha=0.1):
+    def __init__(self, N, alpha=0.1, pos=(0,0), weights=None):
         self.pos = [pos] # entire snake -> head last
         self.alpha = alpha
         self.state = -1
         self.action = -1
         self.Q = dict()
-        print('Initializing...')
-        for x1 in tqdm(range(N)):
-            for y1 in range(N):
-                for x2 in range(N):
-                    for y2 in range(N):
-                        for j in range(256):
-                            self.Q[x1,y1,x2,y2,j] = np.array([0,0,0,0]) # U,D,L,R
+        self.last = [] # last 3
+        if weights:
+            with open(weights) as f:
+                self.Q = json.load(f)['weights']
+        else:
+            print('Initializing...')
+            for x1 in tqdm(range(N)):
+                for y1 in range(N):
+                    for x2 in range(N):
+                        for y2 in range(N):
+                            for j1 in range(-1,3+1):
+                                for j2 in range(-1,3+1):
+                                    #for j3 in range(-1,3+1):
+                                    self.Q[str((x1,y1,x2,y2,j1,j2))] = np.array([0,0,0,0]) # U,D,L,R
+
 
     def reset(self, pos):
+        self.last = []
         self.pos = [pos] # entire snake -> head last
         self.state = -1
         self.action = -1
@@ -174,10 +188,12 @@ class AISnake:
         if self.state == -1:
             act = np.random.randint(4)
         else:
+            #print(state)
+            #print(self.Q[state])
             max_val = np.max(self.Q[state])
             act = np.random.choice(np.where(self.Q[state]==max_val)[0])
-            #self.Q[self.state][self.action] += self.alpha*(reward + max_val - self.Q[self.state][self.action]) # TD
-            self.Q[self.state][self.action] += self.alpha*(reward + self.Q[self.state][act] - self.Q[self.state][self.action]) # SARSA
+            self.Q[self.state][self.action] += self.alpha*(reward + max_val - self.Q[self.state][self.action]) # TD
+            #self.Q[self.state][self.action] += self.alpha*(reward + self.Q[self.state][act] - self.Q[self.state][self.action]) # SARSA
 
         self.state = state
         self.action = act
@@ -194,38 +210,46 @@ class AISnake:
 class Game:
     """docstring for Game."""
 
-    def __init__(self, s, N, num, print_every=100):
+    def __init__(self, s, N, print_every=100):
         self.snake = s
-        self.print_every = print_every
         self.N = N
         self.snake.pos[0] = (int(N/2),int(N/2))
         self.env = Env(N, s)
         self.env.grid[self.snake.pos[-1]] = object['snake-head']
         self.env.create_food()
-        self.num = num
 
-    def train(self):
+    def train(self, num, print_every=None, decay=0.95, decay_every=None):
+        if not decay_every:
+            decay_every = int(num/15)
+        if not print_every:
+            print_every = int(num/20)
+
         r = 0
         s = self.env.get_state()
-        flag = True
+        flag1 = True
+        flag2 = True
         count = 1
         scorenum = 0
         scoredenom = 0
         sc = 0
-        while (count<=self.num):
-            if (flag and count%self.print_every==0):
-                self.snake.alpha = self.snake.alpha*0.95
+        while (count<=num):
+            if flag1 and count%print_every==0:
                 score = scorenum/scoredenom
-                print('iteration ', count, '/', self.num, ' Average score: ', round(score,2))
-                scorenum = 0
-                scoredenom = 0
-                flag = False
+                print('\t it:', count, '/', num, ' Avg: ', round(score,2), ' a: ', self.snake.alpha)
+                #scorenum = 0
+                #scoredenom = 0
+                flag1 = False
+
+            if flag2 and count%decay_every == 0:
+                self.snake.alpha *= decay
+                flag2 = False
 
             if self.env.end:
                 scorenum += sc
                 scoredenom += 1
                 count += 1
-                flag = True
+                flag1 = True
+                flag2 = True
                 self.env.reset()
                 self.snake.reset((int(self.N/2),int(self.N/2)))
                 self.env.grid[self.snake.pos[0]] = object['snake-head']
@@ -236,15 +260,25 @@ class Game:
             a = self.snake.move(r,s)
             r,s,sc = self.env.next(a)
 
-    def play(self):
-        self.env.reset()
-        self.snake.reset((int(self.N/2),int(self.N/2)))
-        self.env.grid[self.snake.pos[0]] = object['snake-head']
-        self.env.create_food()
-        r = 0
-        s = self.env.get_state()
-
-        while (not self.env.end):
-            print(self.env)
-            a = self.snake.move(r,s)
-            r,s,_ = self.env.next(a, print_score=True)
+    def play(self, num, print_score=False, print_env=False):
+        sc = 0
+        mx = 0
+        scr = dict()
+        for i in range(num):
+            self.env.reset()
+            self.snake.reset((int(self.N/2),int(self.N/2)))
+            self.env.grid[self.snake.pos[0]] = object['snake-head']
+            self.env.create_food()
+            r = 0
+            s = self.env.get_state()
+            sc = 0
+            while (not self.env.end):
+                if print_env:
+                    print(self.env)
+                a = self.snake.move(r,s)
+                r,s,sc = self.env.next(a, print_score=print_score)
+            if sc in scr:
+                scr[sc] += 1
+            else:
+                scr[sc] = 1
+        return scr

@@ -84,7 +84,9 @@ class Env:
             x2 = x2[0]
             y2 = y2[0]
 
-        if self.snake.mem == 1:
+        if self.snake.mem == 0:
+            return str((x1,y1,x2,y2))
+        elif self.snake.mem == 1:
             return str((x1,y1,x2,y2,lasts[-1]))
         elif self.snake.mem == 2:
             return str((x1,y1,x2,y2,lasts[-1],lasts[-2]))
@@ -174,7 +176,9 @@ class AISnake:
                             for j in range(pow(5,mem)):
                                 arr = np.array([init_val,init_val,init_val,init_val], dtype=np.float32)
                                 num = 0
-                                if mem == 1:
+                                if mem == 0:
+                                    self.Q[str((x1,y1,x2,y2))] = [arr,num] # U,D,L,R
+                                elif mem == 1:
                                     self.Q[str((x1,y1,x2,y2,j-1))] = [arr,num] # U,D,L,R
                                 elif mem == 2:
                                     self.Q[str((x1,y1,x2,y2,int(j/5)%5-1,(j%5)-1))] = [arr,num] # U,D,L,R

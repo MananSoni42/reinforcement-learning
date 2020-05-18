@@ -3,12 +3,11 @@ import numpy as np
 import json
 import sys
 
-#N = int(sys.argv[1])
 N = int(sys.argv[1])
-mem = int(sys.argv[2]) # 1 2 3 supported
+mem = int(sys.argv[2]) # 0 1 2 3 supported
 num = int(sys.argv[3])
 num_iters_play = 1000
-alphas = [0.1, 0.3, 0.5, 0.7, 0.9, 1.1, 1.3]
+alphas = [0.1, 0.3, 0.5, 0.7, 0.9, 1.1]
 eps = 0.05
 
 best_q =dict()
@@ -22,26 +21,12 @@ for alpha in alphas: # broad sweep
     snake = AISnake(N=N,mem=mem, alpha=alpha)
     game = Game(snake, N)
     print(f'\n{N},{mem} a: ',alpha)
-    game.train(num=int(num/5), print_every=int(num/25))
+    game.train(num=int(num), print_every=int(num/5))
     sc = game.play(num=num_iters_play, print_score=False)
     mean = np.sum([k*v for k,v in sc.items()])/num_iters_play
     print(f'Mean({alpha}): ', mean)
     if best_mean < mean:
         best_alpha = alpha
-        best_mean = mean
-        best_sc = sc
-        best_q = snake.Q
-
-for alpha in np.arange(best_alpha-eps,best_alpha+2*eps,eps): # fine sweep
-    alpha = round(alpha,3)
-    snake = AISnake(N=N,mem=mem, alpha=alpha)
-    game = Game(snake, N)
-    print(f'\n{N},{mem} a: ',alpha)
-    game.train(num=num, print_every=int(num/5))
-    sc = game.play(num=num_iters_play, print_score=False)
-    mean = np.sum([k*v for k,v in sc.items()])/num_iters_play
-    print(f'Mean({alpha}): ', mean)
-    if best_mean < mean:
         best_mean = mean
         best_sc = sc
         best_q = snake.Q

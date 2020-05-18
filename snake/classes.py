@@ -1,6 +1,7 @@
 import numpy as np
 from tqdm import tqdm
 import json
+np.random.seed(42)
 
 object = {
     'empty': 0,
@@ -17,25 +18,17 @@ action = {
 }
 
 action_enc = {
-    'left': 0,
-    'right': 1,
-    'up': 2,
-    'down': 3,
+    'up': 0,
+    'down': 1,
+    'left': 2,
+    'right': 3,
 }
 
 reward = {
-    'food': 5,
-    'bump': -1,
-    'time': -0.1
+    'food': 10,
+    'bump': -3,
+    'time': 0
 }
-
-
-def str_to_list(s,spl=', '):
-    print(s)
-    s = s.replace('(','').replace(')','').replace('[','').replace(']','').split(spl)
-    l = tuple([int(v) for v in s])
-    print(l)
-    return l
 
 class Env:
     """grid for """
@@ -79,8 +72,8 @@ class Env:
         self.food = True
 
     def get_state(self):
-        if len(self.snake.last) < 2:
-            while (len(self.snake.last) != 3):
+        if len(self.snake.last) < self.snake.mem:
+            while (len(self.snake.last) != self.snake.mem):
                 self.snake.last.insert(0,-1)
         lasts = self.snake.last[-3:]
         x1,y1 = self.snake.pos[-1]
@@ -91,7 +84,12 @@ class Env:
             x2 = x2[0]
             y2 = y2[0]
 
-        return str((x1,y1,x2,y2,lasts[-1],lasts[-2]))
+        if self.snake.mem == 1:
+            return str((x1,y1,x2,y2,lasts[-1]))
+        elif self.snake.mem == 2:
+            return str((x1,y1,x2,y2,lasts[-1],lasts[-2]))
+        elif self.snake.mem == 3:
+            return str((x1,y1,x2,y2,lasts[-1],lasts[-2],lasts[-3]))
 
     def next(self,a,print_score=False):
         self.snake.last.append(action_enc[a])
@@ -126,7 +124,6 @@ class Env:
 
         if print_score:
             print("score: ",self.score, '\n')
-
         return r, self.get_state(), self.score
 
 
@@ -135,6 +132,7 @@ class HumanSnake:
 
     def __init__(self, pos=(0,0)):
         self.pos = [pos] # entire snake -> head last
+        self.last = [] # last actions
 
     def reset(self, pos):
         self.pos = [pos]
@@ -156,26 +154,32 @@ class HumanSnake:
 class AISnake:
     """class for snake object can move"""
 
-    def __init__(self, N, alpha=0.1, pos=(0,0), weights=None):
+    def __init__(self, N, mem=2, alpha=0.1, pos=(0,0), weights=None, init_val=1):
         self.pos = [pos] # entire snake -> head last
         self.alpha = alpha
+        self.mem = mem
         self.state = -1
         self.action = -1
         self.Q = dict()
-        self.last = [] # last 3
+        self.last = [] # last actions
         if weights:
             with open(weights) as f:
                 self.Q = json.load(f)['weights']
         else:
-            print('Initializing...')
-            for x1 in tqdm(range(N)):
+            #print('Initializing...')
+            for x1 in range(N):
                 for y1 in range(N):
                     for x2 in range(N):
                         for y2 in range(N):
-                            for j1 in range(-1,3+1):
-                                for j2 in range(-1,3+1):
-                                    #for j3 in range(-1,3+1):
-                                    self.Q[str((x1,y1,x2,y2,j1,j2))] = np.array([0,0,0,0]) # U,D,L,R
+                            for j in range(pow(5,mem)):
+                                arr = np.array([init_val,init_val,init_val,init_val], dtype=np.float32)
+                                num = 0
+                                if mem == 1:
+                                    self.Q[str((x1,y1,x2,y2,j-1))] = [arr,num] # U,D,L,R
+                                elif mem == 2:
+                                    self.Q[str((x1,y1,x2,y2,int(j/5)%5-1,(j%5)-1))] = [arr,num] # U,D,L,R
+                                elif mem == 3:
+                                    self.Q[str((x1,y1,x2,y2,int(j/25)%5-1,int(j/5)%5-1,(j%5)-1))] = [arr,num] # U,D,L,R
 
 
     def reset(self, pos):
@@ -184,15 +188,21 @@ class AISnake:
         self.state = -1
         self.action = -1
 
-    def move(self, reward, state): # TD
+    def move(self, reward, state,test=False): # TD
         if self.state == -1:
             act = np.random.randint(4)
         else:
-            #print(state)
-            #print(self.Q[state])
-            max_val = np.max(self.Q[state])
-            act = np.random.choice(np.where(self.Q[state]==max_val)[0])
-            self.Q[self.state][self.action] += self.alpha*(reward + max_val - self.Q[self.state][self.action]) # TD
+            self.Q[state][1] += 1
+            #max_val = np.max(self.Q[state][0])
+            if test:
+                act = np.random.choice(np.where(self.Q[state][0]==np.max(self.Q[state][0]))[0])
+            else:
+                probs = (self.Q[state][0]+np.abs(np.min(self.Q[state][0])))/np.sum(self.Q[state][0]+np.abs(np.min(self.Q[state][0])))
+                #probs = np.exp(self.Q[state][0])/np.sum(np.exp(self.Q[state][0]))
+                act = np.random.choice(np.array([0,1,2,3]), p=probs)
+
+            if not test:
+                self.Q[self.state][0][self.action] += self.alpha*np.exp(-self.Q[self.state][1]/100)*(reward + self.Q[state][0][act] - self.Q[self.state][0][self.action]) # TD
             #self.Q[self.state][self.action] += self.alpha*(reward + self.Q[self.state][act] - self.Q[self.state][self.action]) # SARSA
 
         self.state = state
@@ -218,7 +228,7 @@ class Game:
         self.env.grid[self.snake.pos[-1]] = object['snake-head']
         self.env.create_food()
 
-    def train(self, num, print_every=None, decay=0.95, decay_every=None):
+    def train(self, num, print_every=None, decay=1, decay_every=None):
         if not decay_every:
             decay_every = int(num/15)
         if not print_every:
@@ -232,10 +242,14 @@ class Game:
         scorenum = 0
         scoredenom = 0
         sc = 0
+        l = 0
+        l_temp = 0
+
         while (count<=num):
             if flag1 and count%print_every==0:
                 score = scorenum/scoredenom
-                print('\t it:', count, '/', num, ' Avg: ', round(score,2), ' a: ', self.snake.alpha)
+                #print(f'\t it: {int(100*count/num)}% | score: {round(score,2)} | len: {round(l/scoredenom,2)} | a: {round(self.snake.alpha,3)}')
+                print(f'\t it: {int(100*count/num)}% | score: {round(score,2)} | len: {round(l/scoredenom,2)}')
                 #scorenum = 0
                 #scoredenom = 0
                 flag1 = False
@@ -245,6 +259,8 @@ class Game:
                 flag2 = False
 
             if self.env.end:
+                l += l_temp
+                l_temp = 0
                 scorenum += sc
                 scoredenom += 1
                 count += 1
@@ -257,6 +273,7 @@ class Game:
                 s = self.env.get_state()
 
             #print(self.env)
+            l_temp += 1
             a = self.snake.move(r,s)
             r,s,sc = self.env.next(a)
 
@@ -275,7 +292,8 @@ class Game:
             while (not self.env.end):
                 if print_env:
                     print(self.env)
-                a = self.snake.move(r,s)
+                a = self.snake.move(r,s,test=True)
+                #print(s,self.snake.Q[s],a)
                 r,s,sc = self.env.next(a, print_score=print_score)
             if sc in scr:
                 scr[sc] += 1

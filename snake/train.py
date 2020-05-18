@@ -3,16 +3,10 @@ import numpy as np
 import json
 import sys
 
-class ListEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, np.ndarray):
-            return obj.tolist()
-        elif isinstance(obj,list):
-            return obj
-        return json.JSONEncoder.default(self, obj)
-
+#N = int(sys.argv[1])
 N = int(sys.argv[1])
-num = 250000
+mem = int(sys.argv[2]) # 1 2 3 supported
+num = int(sys.argv[3])
 num_iters_play = 1000
 alphas = [0.1, 0.3, 0.5, 0.7, 0.9, 1.1, 1.3]
 eps = 0.05
@@ -24,10 +18,11 @@ best_alpha = 0
 
 #snake = HumanSnake()
 for alpha in alphas: # broad sweep
-    snake = AISnake(N,alpha)
+    alpha = round(alpha,3)
+    snake = AISnake(N=N,mem=mem, alpha=alpha)
     game = Game(snake, N)
-    print('\na: ',alpha)
-    game.train(num=int(num/5), print_every=int(num/50))
+    print(f'\n{N},{mem} a: ',alpha)
+    game.train(num=int(num/5), print_every=int(num/25))
     sc = game.play(num=num_iters_play, print_score=False)
     mean = np.sum([k*v for k,v in sc.items()])/num_iters_play
     print(f'Mean({alpha}): ', mean)
@@ -38,9 +33,10 @@ for alpha in alphas: # broad sweep
         best_q = snake.Q
 
 for alpha in np.arange(best_alpha-eps,best_alpha+2*eps,eps): # fine sweep
-    snake = AISnake(N,alpha)
+    alpha = round(alpha,3)
+    snake = AISnake(N=N,mem=mem, alpha=alpha)
     game = Game(snake, N)
-    print('\na: ',alpha)
+    print(f'\n{N},{mem} a: ',alpha)
     game.train(num=num, print_every=int(num/5))
     sc = game.play(num=num_iters_play, print_score=False)
     mean = np.sum([k*v for k,v in sc.items()])/num_iters_play
@@ -50,15 +46,15 @@ for alpha in np.arange(best_alpha-eps,best_alpha+2*eps,eps): # fine sweep
         best_sc = sc
         best_q = snake.Q
 
-with open(f'weights/{N}x{N}-2-weights.json','w') as f:
-    print('Best distr: ',best_sc)
+with open(f'final_weights/{N}x{N}-{mem}.json','w') as f:
+    print(f'{N},{mem} Best distr: ',best_sc)
     print(f'Mean({best_alpha}): ', best_mean)
     json.dump({
                 'N': N,
                 'distribution': best_sc,
                 'mean': best_mean,
-                'weights': {k:v for k,v in best_q.items()},
-            },
-            f,
-            indent=2,
-            cls=ListEncoder)
+                'weights': {k:[v[0].tolist(),v[1]] for k,v in best_q.items()},
+                },
+                f,
+                indent=2,
+            )

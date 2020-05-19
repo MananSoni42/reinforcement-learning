@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <script type="text/javascript" src="../weights/5x5-2.js"></script>
     <link rel="stylesheet" href="game.css">
     <!-- CSS only -->
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css" integrity="sha384-9aIt2nRpC12Uk9gS9baDl411NQApFmC26EwAOH8WgZl5MYYxFfc+NcPb1dKGj7Sk" crossorigin="anonymous">
@@ -79,24 +78,25 @@
           </div>
 
           <div class="row m-5">
-            <div class="col-12 text-center">
+            <div class="col-6 text-center">
               <button type = "button" class="btn btn-light text-success btn-lg" onclick="reset()">
                 <i class="fas fa-undo"></i>
               </button>
               <br>
               <small class="text-light">Replay</small>
             </div>
+            <div class="col-6 text-center">
+              <button type = "button" class="btn btn-light text-success btn-lg" onclick="fetch_weights()">
+                <i class="fas fa-play"></i>
+              </button>
+              <br>
+              <small class="text-light">Play with new parameters</small>
+            </div>
           </div>
 
         </div> <!-- col -->
       </div> <!-- row -->
     </div> <!-- container -->
-
-    <script>
-      var n = 5;
-      var mem=2;
-      weights = weights["weights"];
-    </script>
     <script src="game.js"></script>
   </body>
 </html>

@@ -284,8 +284,10 @@ class Game:
     def play(self, num, print_score=False, print_env=False):
         sc = 0
         mx = 0
+        l = 0
         scr = dict()
-        for i in range(num):
+        for i in tqdm(range(num)):
+            l = 0
             self.env.reset()
             self.snake.reset((int(self.N/2),int(self.N/2)))
             self.env.grid[self.snake.pos[0]] = object['snake-head']
@@ -293,7 +295,8 @@ class Game:
             r = 0
             s = self.env.get_state()
             sc = 0
-            while (not self.env.end):
+            while (not self.env.end and l<50):
+                l += 1
                 if print_env:
                     print(self.env)
                 a = self.snake.move(r,s,test=True)

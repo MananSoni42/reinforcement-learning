@@ -1,15 +1,17 @@
 var bh = 420;
-var p = 0;
 //var cw = bw + (p*2) + 1;
 var canvas = document.getElementById("canvas");
+var p = 0;
 var ctx = canvas.getContext("2d");
 
+var n = 5;
+var mem=0;
 var interval;
 var grid = [];
 var pos,last,food_pos;
 var food=false, end=false;
 var score=0;
-var denom=0
+var weights;
 
 var colMap = {
   0: "#292b2c",
@@ -38,16 +40,23 @@ function getRandomInt(max) {
 
 function fetch_weights() {
 
+  $.getJSON(`https://manansoni42.github.io/reinforcement-learning/snake/final_weights/${n}x${n}-${mem}.json`,
+            function(data) {
+              weights = data;
+              console.log(weights["N"]);
+              weights = weights["weights"];
+              reset();
+      });
 }
 
 function setMem(n) {
   mem = n;
-  fetch_weights();
+  //fetch_weights();
 }
 
 function setGrid(num) {
   n = num;
-  fetch_weights();
+  //fetch_weights();
 }
 
 function update_score() {
@@ -192,14 +201,12 @@ function next() {
   }
 
   if (end) {
-    denom+=1;
     //reset();
     clearInterval(interval); // Needed for Chrome to end game
   }
 }
 
 function reset() {
-  console.log(score/denom);
   grid = [];
   for(let i = 0; i < n; i++) {
     let l = []
@@ -216,13 +223,8 @@ function reset() {
   //console.log(score);
   create_food();
 
-  clearInterval(interval); // Needed for Chrome to end game
-  interval = setInterval(next, 200);
+  clearInterval(interval);
+  interval = setInterval(next, 300);
 }
 
-function mod_reset() {
-  cons
-  reset();
-}
-
-reset();
+fetch_weights();
